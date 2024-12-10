@@ -1,17 +1,23 @@
-package com.example.unifiedrecorder
+package gsyt.android.unifiedrecorder
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.PixelFormat
 import android.media.MediaProjection
 import android.media.MediaProjectionManager
 import android.media.MediaRecorder
 import android.os.Environment
+import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import android.util.DisplayMetrics
 import android.view.Surface
 import android.view.WindowManager
 import android.widget.Toast
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import java.io.File
 import java.io.IOException
 
 class UnifiedRecorderTileService : TileService() {
@@ -41,7 +47,16 @@ class UnifiedRecorderTileService : TileService() {
         if (isRecording) {
             stopRecording()
         } else {
-            startRecording()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED ||
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.WRITE_EXTERNAL_STORAGE), REQUEST_CODE)
+                } else {
+                    startRecording()
+                }
+            } else {
+                startRecording()
+            }
         }
     }
 
@@ -67,8 +82,11 @@ class UnifiedRecorderTileService : TileService() {
             setAudioSource(MediaRecorder.AudioSource.MIC)
             setVideoSource(MediaRecorder.VideoSource.SURFACE)
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            val outputPath = "${Environment.getExternalStorageDirectory()}/ScreenRecordings"
-            setOutputFile("$outputPath/recording_${System.currentTimeMillis()}.mp4")
+            val outputPath = File(getExternalFilesDir(null), "ScreenRecordings")
+            if (!outputPath.exists()) {
+                outputPath.mkdirs()
+            }
+            setOutputFile(File(outputPath, "recording_${System.currentTimeMillis()}.mp4").absolutePath)
             setVideoSize(1080, 1920)
             setVideoEncoder(MediaRecorder.VideoEncoder.H264)
             setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
@@ -119,6 +137,8 @@ class UnifiedRecorderTileService : TileService() {
 
     override fun onStopListening() {
         super.onStopListening()
-        stopRecording()
+        if (isRecording) {
+            stopRecording()
+        }
     }
 }
